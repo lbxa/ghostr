@@ -1,8 +1,9 @@
-import socket
-from constants import IP, PORT, ADDR, SIZE, FORMAT
+from socket import *
+from constants import ADDR, SIZE, FORMAT
+
 
 def main():
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client = socket(AF_INET, SOCK_STREAM)
     client.connect(ADDR)
     print(f"[CONNECTED] Client connected to server")
 

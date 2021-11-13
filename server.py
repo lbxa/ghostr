@@ -1,5 +1,4 @@
-""" Multi-threaded approach to TCP server"""
-import socket
+from socket import *
 from threading import Thread, active_count
 from constants import IP, PORT, ADDR, SIZE, FORMAT
 
@@ -31,7 +30,7 @@ class ServerCore(Thread):
 def main():
     print("[START] Server is starting")
     print(f"[LISTENING] Server is listening on {IP}:{PORT}")
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server = socket(AF_INET, SOCK_STREAM)
     server.bind(ADDR)
 
     while True:
