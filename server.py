@@ -1,7 +1,15 @@
-""" Multi-threaded approach to TCP server"""
-import socket
+from socket import *
+import sys
 from threading import Thread, active_count
-from constants import IP, PORT, ADDR, SIZE, FORMAT
+from constants import IP, SIZE, FORMAT
+
+if len(sys.argv) != 3:
+    print("error: usage: python server.py <SERVER_PORT> <BLOCKING_NO>")
+    exit(0)
+
+PORT = int(sys.argv[1])
+BLOCK_MAX = int(sys.argv[2])
+ADDR = (IP, PORT)
 
 
 class ServerCore(Thread):
@@ -31,7 +39,7 @@ class ServerCore(Thread):
 def main():
     print("[START] Server is starting")
     print(f"[LISTENING] Server is listening on {IP}:{PORT}")
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server = socket(AF_INET, SOCK_STREAM)
     server.bind(ADDR)
 
     while True:
