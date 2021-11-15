@@ -1,7 +1,7 @@
 import sys
 from socket import *
 from threading import Thread, active_count
-from constants import IP, SIZE, FORMAT
+from constants import IP, BUFF_SIZE, FORMAT
 from protocol import parse_message, message_type
 from user import User
 
@@ -15,11 +15,14 @@ ADDR = (IP, PORT)
 
 
 class ServerCore(Thread):
-    def __init__(self, sock, addr):
+    CLIENTS = {}
+
+    def __init__(self, client, addr):
         Thread.__init__(self)
         self.addr = addr
-        self.sock = sock
+        self.client = client
         self.host, self.port = addr
+        self.CLIENTS[client] = "<anonymous>"
         print(f"[NEW CONN] {addr} connected")
         self.alive = True
 
@@ -27,10 +30,10 @@ class ServerCore(Thread):
         msg = ""
         blocking_count = BLOCK_MAX
         while self.alive:
-            msg = self.sock.recv(SIZE).decode(FORMAT)
-            print("-" * 10)
-            print(msg)
-            print("-" * 10)
+            msg = self.client.recv(BUFF_SIZE).decode(FORMAT)
+            # print("-" * 10)
+            # print(self.CLIENTS)
+            # print("-" * 10)
             if msg == "!EXIT":
                 self.alive = False
                 msg = f"Goodbye #{self.port}"
@@ -38,7 +41,7 @@ class ServerCore(Thread):
             elif message_type(msg) == "LOGON":
                 username = parse_message(msg)["WHO"]
                 msg = f"TYPE: LOGON\nRET: {int(User().search(username))}"
-                self.sock.send(msg.encode(FORMAT))
+                self.client.send(msg.encode(FORMAT))
             elif message_type(msg) == "AUTH":
                 username = parse_message(msg)["WHO"]
                 password = parse_message(msg)["PASW"]
@@ -48,17 +51,21 @@ class ServerCore(Thread):
                     if not valid_login:
                         blocking_count -= 1
                     msg = f"TYPE: AUTH\nPASW: {valid_login}\nATMP: {blocking_count}"
+                    self.CLIENTS[self.client] = username
                 else:
                     User().add(username, password)
                     msg = f"TYPE: AUTH\nPASW: 1\nATMP: {BLOCK_MAX}"
+                    self.CLIENTS[self.client] = username
 
-                self.sock.send(msg.encode(FORMAT))
+                self.client.send(msg.encode(FORMAT))
             elif message_type(msg) == "MSG":
+                sender = parse_message(msg)["FROM"]
                 message_contents = parse_message(msg)["BODY"]
-                print(f"[{self.port}, MSG] {message_contents}")
-                self.sock.send("Message sent".encode(FORMAT))
+                for client in self.CLIENTS:
+                    msg = f"TYPE: MSG\nFROM: {sender}\nTO: broadcast\nBODY: {message_contents}"
+                    client.send(msg.encode(FORMAT))
 
-        self.sock.close()
+        self.client.close()
 
 
 def main():
@@ -69,8 +76,8 @@ def main():
 
     while True:
         server.listen()
-        sock, addr = server.accept()
-        client_thread = ServerCore(sock, addr)
+        client, addr = server.accept()
+        client_thread = ServerCore(client, addr)
         client_thread.start()
         print(f"[ACTIVE CONNECTIONS] {active_count() - 1}")
 
