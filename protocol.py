@@ -3,6 +3,8 @@ def parse_message(message):
     msg_struct = {}
     for line in message.split("\n"):
         premature_line = line.split(":")
+        # print("Premanture line: ----------")
+        # print(premature_line)
         premature_line[1] = premature_line[1].strip()
         msg_struct[premature_line[0]] = premature_line[1]
 
@@ -15,6 +17,17 @@ def message_type(message):
 
 def pack_message(message={}, message_type=0):
     pass
+
+
+# remove first word from command "broadcast hello everyone" -> "hello everyone"
+def remove_first_word(command):
+    return " ".join(command.split(" ")[1:])
+
+
+def unpack_message(command):
+    sender = command.split(" ")[1]
+    message_contents = " ".join(command.split(" ")[2:])
+    return (sender, message_contents)
 
 
 # if __name__ == "__main__":

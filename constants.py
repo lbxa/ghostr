@@ -6,6 +6,7 @@ BUFF_SIZE = 1024
 FORMAT = "utf-8"
 
 # error values
+NO_ERR = "0"
 ERR_WRONG_PASW = 1
 ERR_INVALID_USER = 2
 ERR_ALREADY_LOGGED_IN = 3

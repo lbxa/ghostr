@@ -1,9 +1,10 @@
-from constants import ERR_WRONG_PASW, ERR_INVALID_USER, ERR_ALREADY_LOGGED_IN
+from datetime import datetime
+
+ACTIVE_USERS = []
+BLOCKED_USERS = []
 
 
 class User:
-    ACTIVE_USERS = []
-
     def __init__(self):
         self.credentials_file = "credentials.txt"
 
@@ -30,34 +31,40 @@ class User:
     def search(self, username):
         return username in [user["username"] for user in self.readall()]
 
-    def search_active(self, username):
-        return username in [user["username"] for user in self.ACTIVE_USERS]
+    def search_online(self, username):
+        print("Currently online")
+        print(ACTIVE_USERS)
+        return username in [user["username"] for user in ACTIVE_USERS]
+
+    def get_all_online_users(self):
+        return [user["username"] for user in ACTIVE_USERS]
 
     def auth(self, username, password):
         user_credentials = [(user["username"], user["password"]) for user in self.readall()]
         return (username, password) in user_credentials
 
-    def login(self, username, password):
-        # case(1): user does not exist
-        if not self.search(username):
-            print("user does not exist")
-            return ERR_INVALID_USER
+    # return True if blocked, False otherwise
+    def is_blocked(self, username):
+        for user in BLOCKED_USERS:
+            if user["username"] == username:
+                return datetime.now() < user["end"]
+        return False
 
-        # case(2): already logged on
-        if self.search_active(username):
-            print("already logged on")
-            return ERR_ALREADY_LOGGED_IN
-
-        # case(3): username/password incorrect
-        if not self.auth(username, password):
-            print("username/password combo incorrect, try again")
-            return ERR_WRONG_PASW
-
-        self.ACTIVE_USERS.append({"username": username, "password": password})
+    def block(self, username, start, end, by=False):
+        global BLOCKED_USERS
+        if by:
+            BLOCKED_USERS.append({"username": username, "start": start, "end": end, "by": by})
+        else:
+            BLOCKED_USERS.append({"username": username, "start": start, "end": end})
         return True
 
-    def logout_user(self, username, password):
-        pass
+    def login(self, username, password):
+        global ACTIVE_USERS
+        ACTIVE_USERS.append({"username": username, "password": password})
+
+    def logout(self, username):
+        global ACTIVE_USERS
+        ACTIVE_USERS = list(filter(lambda user: user["username"] != username, ACTIVE_USERS))
 
 
 # if __name__ == "__main__":
