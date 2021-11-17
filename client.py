@@ -99,9 +99,8 @@ def send_msg(username):
         elif "message" in user_input:
             recipient, body = unpack_message(user_input)
             msg = f"TYPE: MSG\nFROM: {username}\nTO: {recipient}\nBODY: {body}"
-        elif "whoelse" in user_input:
-            recipient, body = unpack_message(user_input)
-            msg = f"TYPE: MSG\nFROM: {username}\nTO: {recipient}\nBODY: {body}"
+        elif user_input == "whoelse":
+            msg = f"TYPE: WHOELSE\nFROM: {username}"
         else:
             print("Error. Invalid command")
             continue  # avoid sending an empty message (restart loop)

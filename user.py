@@ -32,12 +32,10 @@ class User:
         return username in [user["username"] for user in self.readall()]
 
     def search_online(self, username):
-        print("Currently online")
-        print(ACTIVE_USERS)
         return username in [user["username"] for user in ACTIVE_USERS]
 
-    def get_all_online_users(self):
-        return [user["username"] for user in ACTIVE_USERS]
+    def get_all_online_users(self, except_for):
+        return [user["username"] for user in ACTIVE_USERS if user["username"] != except_for]
 
     def auth(self, username, password):
         user_credentials = [(user["username"], user["password"]) for user in self.readall()]

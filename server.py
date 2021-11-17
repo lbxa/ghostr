@@ -103,8 +103,8 @@ class ServerCore(Thread):
             # --------------------------------------------------------- /WHOELSE
             elif message_type(msg) == "WHOELSE":
                 sender = parse_message(msg)["FROM"]
-                online_users = User().get_all_online_users()
-                msg = f"TYPE: WHOELSE\nFROM: {sender}\nBODY: {online_users}"
+                online_users = User().get_all_online_users(except_for=sender)
+                msg = f"TYPE: WHOELSE\nFROM: {sender}\nBODY: {', '.join(online_users)}"
                 self.unicast(sender, msg)
             # --------------------------------------------------------- /BROADCAST
             elif message_type(msg) == "BROADCAST":
