@@ -1,7 +1,7 @@
 # returns message as python dict (key, value)
 def parse_message(message):
     msg_struct = {}
-    for line in message.split("\n"):
+    for line in message.split(";;")[:-1]:
         premature_line = line.split(":")
         # print("Premanture line: ----------")
         # print(premature_line)

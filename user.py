@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from constants import SERVER_ALIAS, EMPTY
 
 ACTIVE_USERS = []
 BLOCKED_USERS = []
@@ -10,7 +11,7 @@ class User:
 
     # Returns dictionary of all users that exist in the credentials.txt file
     # @return {"username": string, "password": string}
-    def readall(self):
+    def read_users_file(self):
         users = []
         with open(self.credentials_file, "r") as f:
             user_list = f.readlines()
@@ -29,7 +30,7 @@ class User:
 
     # search user database by username
     def search(self, username):
-        return username in [user["username"] for user in self.readall()]
+        return username in [user["username"] for user in self.read_users_file()]
 
     def search_online(self, username):
         return username in [user["username"] for user in ACTIVE_USERS]
@@ -37,28 +38,51 @@ class User:
     def get_all_online_users(self, except_for):
         return [user["username"] for user in ACTIVE_USERS if user["username"] != except_for]
 
+    def get_all_online_users_since(self, except_for, interval):
+        online_users = []
+        for user in ACTIVE_USERS:
+            if user["username"] != except_for:
+                if datetime.now() - timedelta(0, interval, 0) <= user["logon_time"]:
+                    online_users.append(user["username"])
+
+        return online_users
+
     def auth(self, username, password):
-        user_credentials = [(user["username"], user["password"]) for user in self.readall()]
+        user_credentials = [(user["username"], user["password"]) for user in self.read_users_file()]
         return (username, password) in user_credentials
 
     # return True if blocked, False otherwise
     def is_blocked(self, username):
         for user in BLOCKED_USERS:
             if user["username"] == username:
-                return datetime.now() < user["end"]
+                return datetime.now() < user["end"] if user["blocked_by"] == SERVER_ALIAS else True
         return False
 
-    def block(self, username, start, end, by=False):
+    def is_blocked_by(self, blocker, blockee):
+        for user in BLOCKED_USERS:
+            if user["username"] == blockee and user["blocked_by"] == blocker:
+                return True
+        return False
+
+    def password_block(self, username, start, end):
         global BLOCKED_USERS
-        if by:
-            BLOCKED_USERS.append({"username": username, "start": start, "end": end, "by": by})
-        else:
-            BLOCKED_USERS.append({"username": username, "start": start, "end": end})
-        return True
+        BLOCKED_USERS.append({"username": username, "start": start, "end": end, "blocked_by": SERVER_ALIAS})
+
+    def block(self, blocker, blockee):
+        global BLOCKED_USERS
+        BLOCKED_USERS.append({"username": blockee, "start": EMPTY, "end": EMPTY, "blocked_by": blocker})
+        print(BLOCKED_USERS)
+
+    def unblock(self, blocker, blockee):
+        global BLOCKED_USERS
+        BLOCKED_USERS = list(
+            filter(lambda user: user["username"] != blockee and user["blocked_by"] != blocker, BLOCKED_USERS)
+        )
+        print(BLOCKED_USERS)
 
     def login(self, username, password):
         global ACTIVE_USERS
-        ACTIVE_USERS.append({"username": username, "password": password})
+        ACTIVE_USERS.append({"username": username, "password": password, "logon_time": datetime.now()})
 
     def logout(self, username):
         global ACTIVE_USERS

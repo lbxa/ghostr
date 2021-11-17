@@ -19,8 +19,20 @@ def recv_msg():
             msg = client.recv(BUFF_SIZE).decode(FORMAT)
             if message_type(msg) == "MSG":
                 print(parse_message(msg)["FROM"] + ": " + parse_message(msg)["BODY"])
-            elif message_type(msg) == "WHOELSE":
+            elif message_type(msg) == "WHOELSE" or message_type(msg) == "WHOELSESINCE":
                 print(parse_message(msg)["BODY"])
+            elif message_type(msg) == "LOGGEDIN":
+                print(parse_message(msg)["WHO"] + " logged in")
+            elif message_type(msg) == "BLOCK":
+                if not int(parse_message(msg)["RET"]):
+                    print(parse_message(msg)["ERR"])
+                else:
+                    print(parse_message(msg)["WHO"] + " was blocked")
+            elif message_type(msg) == "UNBLOCK":
+                if not int(parse_message(msg)["RET"]):
+                    print(parse_message(msg)["ERR"])
+                else:
+                    print(parse_message(msg)["WHO"] + " was unblocked")
             elif message_type(msg) == "LOGOUT":
                 print(parse_message(msg)["WHO"] + " logged out")
                 connected = False
@@ -37,7 +49,7 @@ def recv_msg():
 def user_auth():
     # -------------------------------------------------- /AUTH
     username = input("Username: ")
-    msg = f"""TYPE: LOGON\nWHO: {username}"""
+    msg = f"""TYPE: LOGON;;WHO: {username};;"""
 
     # server logon response
     client.send(msg.encode(FORMAT))
@@ -54,13 +66,13 @@ def user_auth():
     # --------------------------------- /NEW USERS
     elif new_user:
         password = input("This is a new user. Enter a password: ")
-        msg = f"TYPE: AUTH\nWHO: {username}\nPASW: {password}\nNEW: 1"
+        msg = f"TYPE: AUTH;;WHO: {username};;PASW: {password};;NEW: 1;;"
         client.send(msg.encode(FORMAT))
     else:
         # ----------------------------- /EXISTING USERS
         # initial password prompt
         password = input("Password: ")
-        msg = f"TYPE: AUTH\nWHO: {username}\nPASW: {password}\nNEW: 0"
+        msg = f"TYPE: AUTH;;WHO: {username};;PASW: {password};;NEW: 0;;"
         client.send(msg.encode(FORMAT))
 
         msg = client.recv(BUFF_SIZE).decode(FORMAT)
@@ -75,7 +87,7 @@ def user_auth():
 
             print("Invalid Password. Please try again")
             password = input("Password: ")
-            msg = f"TYPE: AUTH\nWHO: {username}\nPASW: {password}\nNEW: 0"
+            msg = f"TYPE: AUTH;;WHO: {username};;PASW: {password};;NEW: 0;;"
             client.send(msg.encode(FORMAT))
 
             msg = client.recv(BUFF_SIZE).decode(FORMAT)
@@ -92,15 +104,21 @@ def send_msg(username):
     while connected:
         user_input = input()
         if user_input == "logout":
-            msg = f"TYPE: LOGOUT\nWHO: {username}"
+            msg = f"TYPE: LOGOUT;;WHO: {username};;"
             connected = False
         elif "broadcast" in user_input:
-            msg = f"TYPE: BROADCAST\nFROM: {username}\nBODY: {remove_first_word(user_input)}"
+            msg = f"TYPE: BROADCAST;;FROM: {username};;BODY: {remove_first_word(user_input)};;"
         elif "message" in user_input:
             recipient, body = unpack_message(user_input)
-            msg = f"TYPE: MSG\nFROM: {username}\nTO: {recipient}\nBODY: {body}"
+            msg = f"TYPE: MSG;;FROM: {username};;TO: {recipient};;BODY: {body};;"
         elif user_input == "whoelse":
-            msg = f"TYPE: WHOELSE\nFROM: {username}"
+            msg = f"TYPE: WHOELSE;;FROM: {username};;"
+        elif "whoelsesince" in user_input:
+            msg = f"TYPE: WHOELSESINCE;;WHEN: {remove_first_word(user_input)};;FROM: {username};;"
+        elif "unblock" in user_input:
+            msg = f"TYPE: UNBLOCK;;WHO: {remove_first_word(user_input)};;BLOCKER: {username};;"
+        elif "block" in user_input:
+            msg = f"TYPE: BLOCK;;WHO: {remove_first_word(user_input)};;BLOCKER: {username};;"
         else:
             print("Error. Invalid command")
             continue  # avoid sending an empty message (restart loop)
