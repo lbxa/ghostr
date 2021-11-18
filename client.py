@@ -15,48 +15,51 @@ client = socket(AF_INET, SOCK_STREAM)
 client.connect(ADDR)
 
 
-def recv_msg():
-    while True:
-        try:
-            msg = client.recv(BUFF_SIZE).decode(FORMAT)
-            if msg == 0 or msg == "":
-                print("CLIENT THREAD() IS BEING SHUTDOWN from bad response")
-                sys.exit()
-            # --------------------------------------------------------- /MSG
-            if message_type(msg) == "MSG":
-                print(parse_message(msg)["FROM"] + ": " + parse_message(msg)["BODY"])
-            # --------------------------------------------------------- /WHOELSE
-            elif message_type(msg) == "WHOELSE" or message_type(msg) == "WHOELSESINCE":
-                print(parse_message(msg)["BODY"])
-            # --------------------------------------------------------- /LOGGEDIN
-            elif message_type(msg) == "LOGGEDIN":
-                print(parse_message(msg)["WHO"] + " logged in")
-            # --------------------------------------------------------- /BLOCK
-            elif message_type(msg) == "BLOCK":
-                if not int(parse_message(msg)["RET"]):
-                    print(parse_message(msg)["ERR"])
-                else:
-                    print(parse_message(msg)["WHO"] + " was blocked")
-            # --------------------------------------------------------- /UNBLOCK
-            elif message_type(msg) == "UNBLOCK":
-                if not int(parse_message(msg)["RET"]):
-                    print(parse_message(msg)["ERR"])
-                else:
-                    print(parse_message(msg)["WHO"] + " was unblocked")
-            # --------------------------------------------------------- /LOGOUT
-            elif message_type(msg) == "LOGOUT":
-                break
-            elif message_type(msg) == "LOGGEDOUT":
-                print(parse_message(msg)["WHO"] + " logged out")
-            else:
-                # undefined server behaviour
-                pass
-        except Exception as err_msg:
-            pass
+class ClientCore(Thread):
+    def __init__(self):
+        Thread.__init__(self)
 
-    # exit the thread
-    print("CLIENT THREAD() IS BEING SHUTDOWN")
-    sys.exit()
+    def run(self):
+        while True:
+            try:
+                msg = client.recv(BUFF_SIZE).decode(FORMAT)
+                if msg == 0 or msg == "":
+                    print("CLIENT THREAD() IS BEING SHUTDOWN from bad response")
+                    sys.exit()
+                # --------------------------------------------------------- /MSG
+                if message_type(msg) == "MSG":
+                    print(parse_message(msg)["FROM"] + ": " + parse_message(msg)["BODY"])
+                # --------------------------------------------------------- /WHOELSE
+                elif message_type(msg) == "WHOELSE" or message_type(msg) == "WHOELSESINCE":
+                    print(parse_message(msg)["BODY"])
+                # --------------------------------------------------------- /LOGGEDIN
+                elif message_type(msg) == "LOGGEDIN":
+                    print(parse_message(msg)["WHO"] + " logged in")
+                # --------------------------------------------------------- /BLOCK
+                elif message_type(msg) == "BLOCK":
+                    if not int(parse_message(msg)["RET"]):
+                        print(parse_message(msg)["ERR"])
+                    else:
+                        print(parse_message(msg)["WHO"] + " was blocked")
+                # --------------------------------------------------------- /UNBLOCK
+                elif message_type(msg) == "UNBLOCK":
+                    if not int(parse_message(msg)["RET"]):
+                        print(parse_message(msg)["ERR"])
+                    else:
+                        print(parse_message(msg)["WHO"] + " was unblocked")
+                # --------------------------------------------------------- /LOGOUT
+                elif message_type(msg) == "LOGOUT":
+                    break
+                elif message_type(msg) == "LOGGEDOUT":
+                    print(parse_message(msg)["WHO"] + " logged out")
+                else:
+                    # undefined server behaviour
+                    pass
+            except Exception:
+                pass
+
+        # exit the thread
+        sys.exit()
 
 
 def user_auth():
@@ -112,7 +115,6 @@ def user_auth():
 
 
 def send_msg(username):
-    # -------------------------------------------------- /CHAT
     connected = True
     while connected:
         user_input = input()
@@ -139,18 +141,19 @@ def send_msg(username):
         client.send(msg.encode(FORMAT))
 
 
-if __name__ == "__main__":
-    recv_thread = Thread(target=recv_msg)
-    recv_thread.start()
+def main():
+    recv_thread = ClientCore()
 
     authed_username = user_auth()
-    if not authed_username:
-        print("CLIENT MAIN() IS BEING TERMINATED without THREAD()")
+    if authed_username:
+        recv_thread.start()
+        send_msg(authed_username)
         client.close()
         sys.exit()
     else:
-        send_msg(authed_username)
-        # once loop finished
-        print("CLIENT MAIN() IS BEING TERMINATED")
         client.close()
         sys.exit()
+
+
+if __name__ == "__main__":
+    main()
