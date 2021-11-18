@@ -3,9 +3,9 @@ from socket import *
 from datetime import timedelta, datetime
 from threading import Thread, active_count
 from constants import IP, BUFF_SIZE, FORMAT, NO_ERR, NEW_LINE
+from helper import check_unicast_block, check_broadcast_block
 from protocol import parse_message, message_type
 from user import User
-from helper import check_unicast_block, check_broadcast_block
 
 if len(sys.argv) != 4:
     print("error: usage: python server.py <SERVER_PORT> <BLOCKING_TIME> <TIMEOUT>")
@@ -149,7 +149,7 @@ class ServerCore(Thread):
 
                 if logon_verified:
                     self.CLIENTS[self.client] = username
-                    User().login(username, password)
+                    User().login(username, password, self.addr)
                     self.broadcast(username, f"TYPE: LOGGEDIN;;WHO: {username};;")
             # --------------------------------------------------------- /WHOELSE
             elif message_type(msg) == "WHOELSE":
@@ -195,6 +195,13 @@ class ServerCore(Thread):
                 message_contents = parse_message(msg)["BODY"]
                 msg = f"TYPE: MSG;;FROM: {sender};;TO: {recipient};;BODY: {message_contents};;"
                 self.unicast(sender, recipient, msg)
+            # --------------------------------------------------------- /STARTPRIVATE
+            elif message_type(msg) == "PRIVREQ":
+                requester = parse_message(msg)["FROM"]
+                target = parse_message(msg)["TO"]
+                dest_sock = User().get_user_info(target)["addr"]
+                msg = f"TYPE: PRIVREQ;;TO: {target};;FROM: {requester};;RET: 1;;DEST: {dest_sock};;"
+                self.unicast(target, requester, msg)
 
         self.client.shutdown(SHUT_RDWR)
         self.client.close()

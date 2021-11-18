@@ -15,6 +15,34 @@ client = socket(AF_INET, SOCK_STREAM)
 client.connect(ADDR)
 
 
+class P2P:
+    def __init__(self, dest_addr):
+        self.dest_addr = dest_addr
+        self.priv_port = None
+        self.alive = True
+
+    def make_server_socket(self):
+        server = socket(AF_INET, SOCK_STREAM)
+        server.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        server.bind((IP, 0))
+        server.listen()
+        self.priv_port = server.getsockname()[1]
+        return server
+
+    def peer_conn_handler(self, client):
+        msg = ""
+        while self.alive:
+            msg = client.recv(BUFF_SIZE).decode(FORMAT)
+            print(msg)
+
+    def recv_handler(self):
+        server = self.make_server_socket()
+        while True:
+            client, addr = server.accept()
+            t = Thread(target=self.peer_conn_handler, args=[client])
+            t.start()
+
+
 class ClientCore(Thread):
     def __init__(self):
         Thread.__init__(self)
@@ -29,6 +57,10 @@ class ClientCore(Thread):
                 # --------------------------------------------------------- /MSG
                 if message_type(msg) == "MSG":
                     print(parse_message(msg)["FROM"] + ": " + parse_message(msg)["BODY"])
+                # --------------------------------------------------------- /STARTPRIVATE
+                elif message_type(msg) == "PRIVREQ":
+                    dest_sock = parse_message(msg)["DEST"]
+                    print("addr: " + dest_sock)
                 # --------------------------------------------------------- /WHOELSE
                 elif message_type(msg) == "WHOELSE" or message_type(msg) == "WHOELSESINCE":
                     print(parse_message(msg)["BODY"])
@@ -130,6 +162,8 @@ def send_msg(username):
             msg = f"TYPE: WHOELSE;;FROM: {username};;"
         elif "whoelsesince" in user_input:
             msg = f"TYPE: WHOELSESINCE;;WHEN: {remove_first_word(user_input)};;FROM: {username};;"
+        elif "startprivate" in user_input:
+            msg = f"TYPE: PRIVREQ;;TO: {remove_first_word(user_input)};;FROM: {username};;"
         elif "unblock" in user_input:
             msg = f"TYPE: UNBLOCK;;WHO: {remove_first_word(user_input)};;BLOCKER: {username};;"
         elif "block" in user_input:
@@ -142,6 +176,7 @@ def send_msg(username):
 
 
 def main():
+
     recv_thread = ClientCore()
 
     authed_username = user_auth()
