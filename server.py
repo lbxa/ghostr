@@ -2,7 +2,7 @@ import sys
 from socket import *
 from datetime import timedelta, datetime
 from threading import Thread, active_count
-from constants import IP, BUFF_SIZE, FORMAT, NO_ERR
+from constants import IP, BUFF_SIZE, FORMAT, NO_ERR, NEW_LINE
 from protocol import parse_message, message_type
 from user import User
 
@@ -25,9 +25,37 @@ class ServerCore(Thread):
         self.addr = addr
         self.client = client
         self.host, self.port = addr
-        self.CLIENTS[client] = "<anonymous>"
         print(f"[NEW CONN] {addr} connected")
         self.alive = True
+
+    def login_prompt(self, username):
+        self.broadcast(username, f"TYPE: LOGGEDIN;;WHO: {username};;")
+
+    # returns tuple: (success_flag, err_msg)
+    def validate_block(self, blocker, blockee):
+        if blocker == blockee:
+            return 0, "Error. Cannot block self"
+
+        if not User().search(blockee):
+            return 0, "Error. User does not exist"
+
+        if User().is_blocked_by(blocker, blockee):
+            return 0, f"Error. {blockee} already blocked"
+
+        return 1, NO_ERR
+
+    # returns tuple: (success_flag, err_msg)
+    def validate_unblock(self, blocker, blockee):
+        if blocker == blockee:
+            return 0, "Error. Cannot block self"
+
+        if not User().search(blockee):
+            return 0, "Error. User does not exist"
+
+        if not User().is_blocked_by(blocker, blockee):
+            return 0, "Error. You never blocked this user"
+
+        return 1, NO_ERR
 
     # send to every client thread except for the active one
     def broadcast(self, sender, message):
@@ -49,15 +77,17 @@ class ServerCore(Thread):
             if message_type(msg) == "LOGOUT":
                 self.alive = False
                 logged_out_user = parse_message(msg)["WHO"]
-                msg = f"TYPE: LOGOUT\nWHO: {logged_out_user}"
+
+                msg = f"TYPE: LOGOUT;;WHO: {logged_out_user};;"
+                self.client.send(msg.encode(FORMAT))
 
                 del self.CLIENTS[self.client]
                 User().logout(logged_out_user)
 
                 # broadcast logout
                 print(self.CLIENTS)
+                msg = f"TYPE: LOGGEDOUT;;WHO: {logged_out_user};;"
                 for client in self.CLIENTS:
-                    print("@")
                     client.send(msg.encode(FORMAT))
             # --------------------------------------------------------- /LOGON
             elif message_type(msg) == "LOGON":
@@ -76,50 +106,84 @@ class ServerCore(Thread):
                     auth_login = 0
                     error_msg = "Your account is blocked due to multiple login failures. Please try again later"
 
-                msg = f"TYPE: LOGON\nRET: {auth_login}\nNEW: {new_user}\nERR: {error_msg}"
+                msg = f"TYPE: LOGON;;RET: {auth_login};;NEW: {new_user};;ERR: {error_msg};;"
                 self.client.send(msg.encode(FORMAT))
             # --------------------------------------------------------- /AUTH
             elif message_type(msg) == "AUTH":
                 username = parse_message(msg)["WHO"]
                 password = parse_message(msg)["PASW"]
                 new_user = int(parse_message(msg)["NEW"])
+                logon_verified = True
+
                 if not new_user:
                     valid_login = int(User().auth(username, password))
+
                     if not valid_login:
                         blocking_count -= 1
+                        logon_verified = False
 
-                    if blocking_count == 0:
-                        block_finish_time = datetime.now() + timedelta(0, BLOCK_DURATION, 0)
-                        User().block(username, datetime.now(), block_finish_time)
+                        if blocking_count == 0:
+                            block_finish_time = datetime.now() + timedelta(0, BLOCK_DURATION, 0)
+                            User().password_block(username, datetime.now(), block_finish_time)
 
-                    msg = f"TYPE: AUTH\nPASW: {valid_login}\nATMP: {blocking_count}"
+                    msg = f"TYPE: AUTH;;PASW: {valid_login};;ATMP: {blocking_count};;"
                 else:
                     User().add(username, password)
-                    msg = f"TYPE: AUTH\nPASW: 1\nATMP: {BLOCK_MAX}"
+                    msg = f"TYPE: AUTH;;PASW: 1;;ATMP: {BLOCK_MAX};;"
 
-                User().login(username, password)
-                self.CLIENTS[self.client] = username
                 self.client.send(msg.encode(FORMAT))
+
+                if logon_verified:
+                    self.CLIENTS[self.client] = username
+                    User().login(username, password)
+                    self.login_prompt(username)
             # --------------------------------------------------------- /WHOELSE
             elif message_type(msg) == "WHOELSE":
                 sender = parse_message(msg)["FROM"]
-                online_users = User().get_all_online_users()
-                msg = f"TYPE: WHOELSE\nFROM: {sender}\nBODY: {online_users}"
+                online_users = User().get_all_online_users(except_for=sender)
+                msg = f"TYPE: WHOELSE;;FROM: {sender};;BODY: {NEW_LINE.join(online_users)};;"
                 self.unicast(sender, msg)
+            # --------------------------------------------------------- /WHOELSESINCE
+            elif message_type(msg) == "WHOELSESINCE":
+                sender = parse_message(msg)["FROM"]
+                since = float(parse_message(msg)["WHEN"])
+                online_users = User().get_all_online_users_since(except_for=sender, interval=since)
+                msg = f"TYPE: WHOELSE;;FROM: {sender};;BODY: {NEW_LINE.join(online_users)};;"
+                self.unicast(sender, msg)
+            # --------------------------------------------------------- /BLOCK
+            elif message_type(msg) == "BLOCK":
+                blockee = parse_message(msg)["WHO"]
+                blocker = parse_message(msg)["BLOCKER"]
+                successful_block_flag, block_respose = self.validate_block(blocker, blockee)
+                if successful_block_flag:
+                    User().block(blocker, blockee)
+                msg = f"TYPE: BLOCK;;WHO: {blockee};;BLOCKER: {blocker};;RET: {successful_block_flag};;ERR: {block_respose};;"
+                self.unicast(blocker, msg)
+            # --------------------------------------------------------- /UNBLOCK
+            elif message_type(msg) == "UNBLOCK":
+                blockee = parse_message(msg)["WHO"]
+                blocker = parse_message(msg)["BLOCKER"]
+                successful_unblock_flag, unblock_respose = self.validate_unblock(blocker, blockee)
+                if successful_unblock_flag:
+                    User().unblock(blocker, blockee)
+                msg = f"TYPE: UNBLOCK;;WHO: {blockee};;BLOCKER: {blocker};;RET: {successful_unblock_flag};;ERR: {unblock_respose};;"
+                self.unicast(blocker, msg)
             # --------------------------------------------------------- /BROADCAST
             elif message_type(msg) == "BROADCAST":
                 sender = parse_message(msg)["FROM"]
                 message_contents = parse_message(msg)["BODY"]
-                msg = f"TYPE: MSG\nFROM: {sender}\nTO: broadcast\nBODY: {message_contents}"
+                msg = f"TYPE: MSG;;FROM: {sender};;TO: broadcast;;BODY: {message_contents};;"
                 self.broadcast(sender, msg)
             # --------------------------------------------------------- /MESSAGE
             elif message_type(msg) == "MSG":
                 sender = parse_message(msg)["FROM"]
                 recipient = parse_message(msg)["TO"]
                 message_contents = parse_message(msg)["BODY"]
-                msg = f"TYPE: MSG\nFROM: {sender}\nTO: {recipient}\nBODY: {message_contents}"
+                msg = f"TYPE: MSG;;FROM: {sender};;TO: {recipient};;BODY: {message_contents};;"
                 self.unicast(recipient, msg)
 
+        print(f"SERVER IS TERMINATING CLIENT {self.client}")
+        self.client.shutdown(SHUT_RDWR)
         self.client.close()
 
 
