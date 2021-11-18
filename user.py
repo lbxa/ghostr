@@ -1,8 +1,13 @@
 from datetime import datetime, timedelta
+from random import randrange
 from constants import SERVER_ALIAS, EMPTY
 
 ACTIVE_USERS = []
 BLOCKED_USERS = []
+
+# return randomly generated number between (3331, 4000)
+def rand_port_assign():
+    return randrange(3333, 4000)
 
 
 class User:
@@ -30,6 +35,12 @@ class User:
 
     def get_all_users(self):
         return [user["username"] for user in self.read_users_file()]
+
+    def get_user_info(self, username):
+        for user in ACTIVE_USERS:
+            if user["username"] == username:
+                return user
+        return False
 
     # search user database by username
     def search(self, username):
@@ -90,9 +101,9 @@ class User:
             if user["username"] == blockee and user["blocked_by"] == blocker:
                 del BLOCKED_USERS[idx]
 
-    def login(self, username, password):
+    def login(self, username, password, addr):
         global ACTIVE_USERS
-        ACTIVE_USERS.append({"username": username, "password": password, "logon_time": datetime.now()})
+        ACTIVE_USERS.append({"username": username, "password": password, "logon_time": datetime.now(), "addr": addr})
 
     def logout(self, username):
         global ACTIVE_USERS
