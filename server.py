@@ -77,15 +77,17 @@ class ServerCore(Thread):
             if message_type(msg) == "LOGOUT":
                 self.alive = False
                 logged_out_user = parse_message(msg)["WHO"]
+
                 msg = f"TYPE: LOGOUT;;WHO: {logged_out_user};;"
+                self.client.send(msg.encode(FORMAT))
 
                 del self.CLIENTS[self.client]
                 User().logout(logged_out_user)
 
                 # broadcast logout
                 print(self.CLIENTS)
+                msg = f"TYPE: LOGGEDOUT;;WHO: {logged_out_user};;"
                 for client in self.CLIENTS:
-                    print("@")
                     client.send(msg.encode(FORMAT))
             # --------------------------------------------------------- /LOGON
             elif message_type(msg) == "LOGON":
@@ -180,6 +182,8 @@ class ServerCore(Thread):
                 msg = f"TYPE: MSG;;FROM: {sender};;TO: {recipient};;BODY: {message_contents};;"
                 self.unicast(recipient, msg)
 
+        print(f"SERVER IS TERMINATING CLIENT {self.client}")
+        self.client.shutdown(SHUT_RDWR)
         self.client.close()
 
 

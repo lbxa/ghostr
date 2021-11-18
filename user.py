@@ -71,22 +71,36 @@ class User:
     def block(self, blocker, blockee):
         global BLOCKED_USERS
         BLOCKED_USERS.append({"username": blockee, "start": EMPTY, "end": EMPTY, "blocked_by": blocker})
-        print(BLOCKED_USERS)
+        # DEBUG
+        print(f"BLOCKED USERS AFTER {blocker} blocked {blockee}")
+        for user in ACTIVE_USERS:
+            print(user)
 
     def unblock(self, blocker, blockee):
         global BLOCKED_USERS
-        BLOCKED_USERS = list(
-            filter(lambda user: user["username"] != blockee and user["blocked_by"] != blocker, BLOCKED_USERS)
-        )
-        print(BLOCKED_USERS)
+        for idx, user in enumerate(BLOCKED_USERS):
+            if user["username"] == blockee and user["blocked_by"] == blocker:
+                del BLOCKED_USERS[idx]
+        # DEBUG
+        print(f"BLOCKED USERS AFTER {blocker} unblocked {blockee}")
+        for user in ACTIVE_USERS:
+            print(user)
 
     def login(self, username, password):
         global ACTIVE_USERS
         ACTIVE_USERS.append({"username": username, "password": password, "logon_time": datetime.now()})
+        # DEBUG
+        print(f"ACTIVE USERS AFTER {username} LOGIN")
+        for user in ACTIVE_USERS:
+            print(user)
 
     def logout(self, username):
         global ACTIVE_USERS
         ACTIVE_USERS = list(filter(lambda user: user["username"] != username, ACTIVE_USERS))
+        # DEBUG
+        print(f"ACTIVE USERS AFTER {username} LOGOUT")
+        for user in ACTIVE_USERS:
+            print(user)
 
 
 # if __name__ == "__main__":

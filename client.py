@@ -11,31 +11,43 @@ if len(sys.argv) != 2:
 PORT = int(sys.argv[1])
 ADDR = (IP, PORT)
 
+client = socket(AF_INET, SOCK_STREAM)
+client.connect(ADDR)
+
 
 def recv_msg():
-    connected = True
-    while connected:
+    while True:
         try:
             msg = client.recv(BUFF_SIZE).decode(FORMAT)
+            if msg == 0 or msg == "":
+                print("CLIENT THREAD() IS BEING SHUTDOWN from bad response")
+                sys.exit()
+            # --------------------------------------------------------- /MSG
             if message_type(msg) == "MSG":
                 print(parse_message(msg)["FROM"] + ": " + parse_message(msg)["BODY"])
+            # --------------------------------------------------------- /WHOELSE
             elif message_type(msg) == "WHOELSE" or message_type(msg) == "WHOELSESINCE":
                 print(parse_message(msg)["BODY"])
+            # --------------------------------------------------------- /LOGGEDIN
             elif message_type(msg) == "LOGGEDIN":
                 print(parse_message(msg)["WHO"] + " logged in")
+            # --------------------------------------------------------- /BLOCK
             elif message_type(msg) == "BLOCK":
                 if not int(parse_message(msg)["RET"]):
                     print(parse_message(msg)["ERR"])
                 else:
                     print(parse_message(msg)["WHO"] + " was blocked")
+            # --------------------------------------------------------- /UNBLOCK
             elif message_type(msg) == "UNBLOCK":
                 if not int(parse_message(msg)["RET"]):
                     print(parse_message(msg)["ERR"])
                 else:
                     print(parse_message(msg)["WHO"] + " was unblocked")
+            # --------------------------------------------------------- /LOGOUT
             elif message_type(msg) == "LOGOUT":
+                break
+            elif message_type(msg) == "LOGGEDOUT":
                 print(parse_message(msg)["WHO"] + " logged out")
-                connected = False
             else:
                 # undefined server behaviour
                 pass
@@ -43,6 +55,7 @@ def recv_msg():
             pass
 
     # exit the thread
+    print("CLIENT THREAD() IS BEING SHUTDOWN")
     sys.exit()
 
 
@@ -127,17 +140,17 @@ def send_msg(username):
 
 
 if __name__ == "__main__":
-    client = socket(AF_INET, SOCK_STREAM)
-    client.connect(ADDR)
     recv_thread = Thread(target=recv_msg)
     recv_thread.start()
 
     authed_username = user_auth()
     if not authed_username:
+        print("CLIENT MAIN() IS BEING TERMINATED without THREAD()")
         client.close()
         sys.exit()
     else:
         send_msg(authed_username)
         # once loop finished
+        print("CLIENT MAIN() IS BEING TERMINATED")
         client.close()
         sys.exit()
