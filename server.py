@@ -182,7 +182,6 @@ class ServerCore(Thread):
                 msg = f"TYPE: MSG;;FROM: {sender};;TO: {recipient};;BODY: {message_contents};;"
                 self.unicast(recipient, msg)
 
-        print(f"SERVER IS TERMINATING CLIENT {self.client}")
         self.client.shutdown(SHUT_RDWR)
         self.client.close()
 
