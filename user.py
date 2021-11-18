@@ -28,6 +28,9 @@ class User:
             user_field = f"{username} {password}\n"
             f.write(user_field)
 
+    def get_all_users(self):
+        return [user["username"] for user in self.read_users_file()]
+
     # search user database by username
     def search(self, username):
         return username in [user["username"] for user in self.read_users_file()]
@@ -36,12 +39,16 @@ class User:
         return username in [user["username"] for user in ACTIVE_USERS]
 
     def get_all_online_users(self, except_for):
-        return [user["username"] for user in ACTIVE_USERS if user["username"] != except_for]
+        online_users = []
+        for user in ACTIVE_USERS:
+            if user["username"] != except_for and not self.is_blocked_by(user["username"], except_for):
+                online_users.append(user["username"])
+        return online_users
 
     def get_all_online_users_since(self, except_for, interval):
         online_users = []
         for user in ACTIVE_USERS:
-            if user["username"] != except_for:
+            if user["username"] != except_for and not self.is_blocked_by(user["username"], except_for):
                 if datetime.now() - timedelta(0, interval, 0) <= user["logon_time"]:
                     online_users.append(user["username"])
 

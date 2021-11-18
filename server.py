@@ -5,6 +5,7 @@ from threading import Thread, active_count
 from constants import IP, BUFF_SIZE, FORMAT, NO_ERR, NEW_LINE
 from protocol import parse_message, message_type
 from user import User
+from helper import check_unicast_block
 
 if len(sys.argv) != 4:
     print("error: usage: python server.py <SERVER_PORT> <BLOCKING_TIME> <TIMEOUT>")
@@ -28,16 +29,13 @@ class ServerCore(Thread):
         print(f"[NEW CONN] {addr} connected")
         self.alive = True
 
-    def login_prompt(self, username):
-        self.broadcast(username, f"TYPE: LOGGEDIN;;WHO: {username};;")
-
     # returns tuple: (success_flag, err_msg)
     def validate_block(self, blocker, blockee):
         if blocker == blockee:
             return 0, "Error. Cannot block self"
 
         if not User().search(blockee):
-            return 0, "Error. User does not exist"
+            return 0, f"Error. {blockee} does not exist"
 
         if User().is_blocked_by(blocker, blockee):
             return 0, f"Error. {blockee} already blocked"
@@ -50,10 +48,10 @@ class ServerCore(Thread):
             return 0, "Error. Cannot block self"
 
         if not User().search(blockee):
-            return 0, "Error. User does not exist"
+            return 0, "Error. {blockee} does not exist"
 
         if not User().is_blocked_by(blocker, blockee):
-            return 0, "Error. You never blocked this user"
+            return 0, f"Error. {blockee} is not blocked"
 
         return 1, NO_ERR
 
@@ -63,10 +61,18 @@ class ServerCore(Thread):
             if self.CLIENTS[client] != sender:
                 client.send(message.encode(FORMAT))
 
-    def unicast(self, recipient, message):
-        for client in self.CLIENTS:
-            if self.CLIENTS[client] == recipient:
-                client.send(message.encode(FORMAT))
+    # sender should be set to False if not being used
+    def unicast(self, sender, receiver, message):
+        is_blocked_status = check_unicast_block(sender, receiver)
+
+        if not is_blocked_status:
+            for client in self.CLIENTS:
+                if self.CLIENTS[client] == receiver:
+                    client.send(message.encode(FORMAT))
+        else:
+            for client in self.CLIENTS:
+                if self.CLIENTS[client] == sender:
+                    client.send(is_blocked_status.encode(FORMAT))
 
     def run(self):
         msg = ""
@@ -87,8 +93,8 @@ class ServerCore(Thread):
                 # broadcast logout
                 print(self.CLIENTS)
                 msg = f"TYPE: LOGGEDOUT;;WHO: {logged_out_user};;"
-                for client in self.CLIENTS:
-                    client.send(msg.encode(FORMAT))
+                self.broadcast(logged_out_user, msg)
+
             # --------------------------------------------------------- /LOGON
             elif message_type(msg) == "LOGON":
                 username = parse_message(msg)["WHO"]
@@ -136,20 +142,20 @@ class ServerCore(Thread):
                 if logon_verified:
                     self.CLIENTS[self.client] = username
                     User().login(username, password)
-                    self.login_prompt(username)
+                    self.broadcast(username, f"TYPE: LOGGEDIN;;WHO: {username};;")
             # --------------------------------------------------------- /WHOELSE
             elif message_type(msg) == "WHOELSE":
-                sender = parse_message(msg)["FROM"]
-                online_users = User().get_all_online_users(except_for=sender)
-                msg = f"TYPE: WHOELSE;;FROM: {sender};;BODY: {NEW_LINE.join(online_users)};;"
-                self.unicast(sender, msg)
+                user_req = parse_message(msg)["FROM"]
+                online_users = User().get_all_online_users(except_for=user_req)
+                msg = f"TYPE: WHOELSE;;FROM: {user_req};;BODY: {NEW_LINE.join(online_users)};;"
+                self.unicast(sender=False, receiver=user_req, message=msg)
             # --------------------------------------------------------- /WHOELSESINCE
             elif message_type(msg) == "WHOELSESINCE":
-                sender = parse_message(msg)["FROM"]
+                user_req = parse_message(msg)["FROM"]
                 since = float(parse_message(msg)["WHEN"])
-                online_users = User().get_all_online_users_since(except_for=sender, interval=since)
-                msg = f"TYPE: WHOELSE;;FROM: {sender};;BODY: {NEW_LINE.join(online_users)};;"
-                self.unicast(sender, msg)
+                online_users = User().get_all_online_users_since(except_for=user_req, interval=since)
+                msg = f"TYPE: WHOELSE;;FROM: {user_req};;BODY: {NEW_LINE.join(online_users)};;"
+                self.unicast(sender=False, receiver=user_req, message=msg)
             # --------------------------------------------------------- /BLOCK
             elif message_type(msg) == "BLOCK":
                 blockee = parse_message(msg)["WHO"]
@@ -158,7 +164,7 @@ class ServerCore(Thread):
                 if successful_block_flag:
                     User().block(blocker, blockee)
                 msg = f"TYPE: BLOCK;;WHO: {blockee};;BLOCKER: {blocker};;RET: {successful_block_flag};;ERR: {block_respose};;"
-                self.unicast(blocker, msg)
+                self.unicast(sender=False, receiver=blocker, message=msg)
             # --------------------------------------------------------- /UNBLOCK
             elif message_type(msg) == "UNBLOCK":
                 blockee = parse_message(msg)["WHO"]
@@ -167,7 +173,7 @@ class ServerCore(Thread):
                 if successful_unblock_flag:
                     User().unblock(blocker, blockee)
                 msg = f"TYPE: UNBLOCK;;WHO: {blockee};;BLOCKER: {blocker};;RET: {successful_unblock_flag};;ERR: {unblock_respose};;"
-                self.unicast(blocker, msg)
+                self.unicast(sender=False, receiver=blocker, message=msg)
             # --------------------------------------------------------- /BROADCAST
             elif message_type(msg) == "BROADCAST":
                 sender = parse_message(msg)["FROM"]
@@ -180,7 +186,7 @@ class ServerCore(Thread):
                 recipient = parse_message(msg)["TO"]
                 message_contents = parse_message(msg)["BODY"]
                 msg = f"TYPE: MSG;;FROM: {sender};;TO: {recipient};;BODY: {message_contents};;"
-                self.unicast(recipient, msg)
+                self.unicast(sender, recipient, msg)
 
         self.client.shutdown(SHUT_RDWR)
         self.client.close()
