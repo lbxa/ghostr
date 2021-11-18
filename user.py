@@ -67,6 +67,7 @@ class User:
 
     def is_blocked_by(self, blocker, blockee):
         for user in BLOCKED_USERS:
+            print(f"currently blocked user being chosen: {user}")
             if user["username"] == blockee and user["blocked_by"] == blocker:
                 return True
         return False
@@ -78,9 +79,9 @@ class User:
     def block(self, blocker, blockee):
         global BLOCKED_USERS
         BLOCKED_USERS.append({"username": blockee, "start": EMPTY, "end": EMPTY, "blocked_by": blocker})
-        # DEBUG
-        print(f"BLOCKED USERS AFTER {blocker} blocked {blockee}")
-        for user in ACTIVE_USERS:
+        # debug
+        print("Blocked users: --------------------")
+        for user in BLOCKED_USERS:
             print(user)
 
     def unblock(self, blocker, blockee):
@@ -88,28 +89,11 @@ class User:
         for idx, user in enumerate(BLOCKED_USERS):
             if user["username"] == blockee and user["blocked_by"] == blocker:
                 del BLOCKED_USERS[idx]
-        # DEBUG
-        print(f"BLOCKED USERS AFTER {blocker} unblocked {blockee}")
-        for user in ACTIVE_USERS:
-            print(user)
 
     def login(self, username, password):
         global ACTIVE_USERS
         ACTIVE_USERS.append({"username": username, "password": password, "logon_time": datetime.now()})
-        # DEBUG
-        print(f"ACTIVE USERS AFTER {username} LOGIN")
-        for user in ACTIVE_USERS:
-            print(user)
 
     def logout(self, username):
         global ACTIVE_USERS
         ACTIVE_USERS = list(filter(lambda user: user["username"] != username, ACTIVE_USERS))
-        # DEBUG
-        print(f"ACTIVE USERS AFTER {username} LOGOUT")
-        for user in ACTIVE_USERS:
-            print(user)
-
-
-# if __name__ == "__main__":
-#     User().login("hans", "falcon*solo")
-#     print(User().auth("hans", "falcon*solo"))

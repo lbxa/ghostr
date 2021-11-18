@@ -5,7 +5,7 @@ from threading import Thread, active_count
 from constants import IP, BUFF_SIZE, FORMAT, NO_ERR, NEW_LINE
 from protocol import parse_message, message_type
 from user import User
-from helper import check_unicast_block
+from helper import check_unicast_block, check_broadcast_block
 
 if len(sys.argv) != 4:
     print("error: usage: python server.py <SERVER_PORT> <BLOCKING_TIME> <TIMEOUT>")
@@ -57,22 +57,30 @@ class ServerCore(Thread):
 
     # send to every client thread except for the active one
     def broadcast(self, sender, message):
-        for client in self.CLIENTS:
-            if self.CLIENTS[client] != sender:
-                client.send(message.encode(FORMAT))
+        blocked_status = check_broadcast_block(sender)
+        if not blocked_status:
+            for client in self.CLIENTS:
+                if self.CLIENTS[client] != sender:
+                    client.send(message.encode(FORMAT))
+        else:
+            for client in self.CLIENTS:
+                if self.CLIENTS[client] == sender:
+                    client.send(blocked_status.encode(FORMAT))
+                elif not User().is_blocked_by(blocker=self.CLIENTS[client], blockee=sender):
+                    client.send(message.encode(FORMAT))
 
     # sender should be set to False if not being used
     def unicast(self, sender, receiver, message):
-        is_blocked_status = check_unicast_block(sender, receiver)
+        blocked_status = check_unicast_block(sender, receiver)
 
-        if not is_blocked_status:
+        if not blocked_status:
             for client in self.CLIENTS:
                 if self.CLIENTS[client] == receiver:
                     client.send(message.encode(FORMAT))
         else:
             for client in self.CLIENTS:
                 if self.CLIENTS[client] == sender:
-                    client.send(is_blocked_status.encode(FORMAT))
+                    client.send(blocked_status.encode(FORMAT))
 
     def run(self):
         msg = ""
