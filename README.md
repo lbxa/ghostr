@@ -42,6 +42,8 @@ On CSE machines:
     python3 client.py 3331
     ```
     
+    NOTE*: For private messages both users must use `privatestart <user>` to initiate a private chat
+    
 
 # 2. Design Choices
 
@@ -62,8 +64,8 @@ On CSE machines:
 - Codebase was split into multiple files (Python modules) for organisation based on functionality
     - [server.py](http://server.py) handles all the server functionality
     - [client.py](http://client.py) handles all client functionality including P2P connections
-    - [user.py](http://user.py) contains all management and CRUD operations for users
-    - [protocol.py](http://protocol.py) contains all functions responsible for parsing messages between server and client
+    - [user.py](http://user.py) contains all management and CRUD operations for individual user operations
+    - [admin.py](http://admin.py) contains all functions responsible for managing all users and their P2P connections
     - [library.py](http://library.py) contains any helper or auxiliary methods
     - [constants.py](http://constants.py) holds all constant values common to all modules
 
