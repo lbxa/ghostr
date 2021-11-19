@@ -17,6 +17,8 @@ from library import (
     private_disconnect,
     private_message,
     private_recv_port,
+    remove_first_word,
+    unpack_message,
 )
 
 if len(sys.argv) != 2:
@@ -47,9 +49,9 @@ message = json.dumps(
 # logout handler
 def logout():
     if is_timeout:
-        chat_print("\rYou are timed out.")
+        print("\rYou are timed out")
     else:
-        chat_print("\rYou are logged out.")
+        print("\rYou are logged out")
         clientSocket.send(json.dumps({"action": "logout"}).encode())
         clientSocket.close()
 
@@ -68,7 +70,7 @@ def recv_handler():
             is_timeout = True
         else:
             # unexpected format
-            chat_print(data)
+            print(data)
 
 
 # handles all outgoing data
@@ -77,13 +79,13 @@ def send_handler():
     while True:
         # handle input and send to server
         command = input("# ").strip()
-        if command.startswith("logout"):
+        if command == "logout":
             to_exit = True
         elif command.startswith("message"):
-            _, user, message = command.split(" ", 2)
-            clientSocket.send(json.dumps({"action": "message", "message": message, "user": user}).encode())
+            user, message = unpack_message(command)
+            clientSocket.send(json.dumps({"action": "message", "message": message, "user": user}).encode(FORMAT))
         elif command.startswith("broadcast"):
-            _, message = command.split(" ", 1)
+            message = remove_first_word(command)
             clientSocket.send(
                 json.dumps(
                     {
@@ -93,7 +95,7 @@ def send_handler():
                 ).encode(FORMAT)
             )
         elif command.startswith("block"):
-            _, user = command.split()
+            user = remove_first_word(command)
             clientSocket.send(
                 json.dumps(
                     {
@@ -103,7 +105,7 @@ def send_handler():
                 ).encode(FORMAT)
             )
         elif command.startswith("unblock"):
-            _, user = command.split()
+            user = remove_first_word(command)
             clientSocket.send(
                 json.dumps(
                     {
@@ -113,18 +115,18 @@ def send_handler():
                 ).encode(FORMAT)
             )
         elif command.startswith("whoelsesince"):
-            _, since = command.split()
-            clientSocket.send(json.dumps({"action": "whoelsesince", "since": since}).encode())
+            since = remove_first_word(command)
+            clientSocket.send(json.dumps({"action": "whoelsesince", "since": since}).encode(FORMAT))
         elif command.startswith("whoelse"):
-            clientSocket.send(json.dumps({"action": "whoelse"}).encode())
+            clientSocket.send(json.dumps({"action": "whoelse"}).encode(FORMAT))
         elif command.startswith("startprivate"):
-            _, user = command.split()
-            clientSocket.send(json.dumps({"action": "startprivate", "user": user}).encode())
+            user = remove_first_word(command)
+            clientSocket.send(json.dumps({"action": "startprivate", "user": user}).encode(FORMAT))
         elif command.startswith("stopprivate"):
-            _, user = command.split()
+            user = remove_first_word(command)
             private_disconnect(user)
         elif command.startswith("private"):
-            _, user, message = command.split(" ", 2)
+            user, message = unpack_message(command)
             private_message(user, message)
 
 
@@ -146,12 +148,11 @@ def interact():
     while True:
         time.sleep(0.1)
 
-        # when set true, exit the main thread
         if to_exit:
             sys.exit()
 
 
-# log in then start interaction if successfully authenticated
+# 1) once login is complete then 2) begin user interaction
 def log_in():
     global message
     clientSocket.send(message.encode(FORMAT))
@@ -162,12 +163,9 @@ def log_in():
             if login_result["status"] == "USERNAME_NOT_EXIST":
                 print(f"Welcome new user {username}!"),
             else:
-                # successfully authenticated
                 print("You are logged in")
 
-            # register on logout cleanup
-            atexit.register(logout)
-            # start interaction
+            atexit.register(logout)  # register on logout cleanup
             interact()
         elif login_result["status"] == "ALREADY_LOGGED_IN":
             print("You have already logged in")
@@ -176,7 +174,6 @@ def log_in():
         elif login_result["status"] == "BLOCKED":
             print("Your account is blocked due to multiple login failures. Please try again later")
         elif login_result["status"] == "INVALID_PASSWORD":
-            # invalid password, try again
             message = json.dumps(
                 {
                     "action": "login",
@@ -189,7 +186,6 @@ def log_in():
         elif login_result["status"] == "ALREADY_LOGGED_IN":
             print("Already logged in")
         else:
-            # things unexpected
             print("FATAL: unexpected message")
             sys.exit()
 
@@ -202,5 +198,4 @@ def keyboard_interrupt_handler(signal, frame):
 signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
 if __name__ == "__main__":
-    # start to authenticate user
     log_in()

@@ -21,7 +21,7 @@ SERVER_ALIAS = "!SERVER!"
 EMPTY = ""
 
 
-class CMPP(Enum):
+class XMPP(Enum):
     LOGON_REQ = 0
     AUTH_REQ = 1
     MSG_REQ = 2

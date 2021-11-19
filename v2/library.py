@@ -17,8 +17,17 @@ def chat_print(*args):
     sys.stdout.flush()
 
 
-# map of username to private tcp socket
-private_socket_map = dict()
+def remove_first_word(command):
+    return " ".join(command.split(" ")[1:])
+
+
+def unpack_message(command):
+    sender = command.split(" ")[1]
+    message_contents = " ".join(command.split(" ")[2:])
+    return (sender, message_contents)
+
+
+private_socket_map = {}
 
 # private connection socket
 private_recv_socket = socket(AF_INET, SOCK_STREAM)
@@ -34,7 +43,7 @@ def private_connection_handler(connection_socket, client_address):
             if not data:
                 # if data is empty, the socket is closed or is in the
                 # process of closing. In this case, close this thread
-                chat_print("Private connection stopped.")
+                chat_print("Private connection stopped")
                 sys.exit()
 
             # received data from the client, now we know who we are talking with
@@ -42,7 +51,7 @@ def private_connection_handler(connection_socket, client_address):
             from_user = data["from"]
             message = data["message"]
 
-            chat_print(from_user, "(private): ", message)
+            chat_print(from_user, "(private):", message)
 
     return real_connection_handler
 
@@ -52,7 +61,7 @@ def private_recv_handler():
     while True:
         # create a new connection for a new client
         connection_socket, client_address = private_recv_socket.accept()
-        chat_print("Private connection started.")
+        chat_print("Private connection started")
 
         # create a new function handler for the client
         private_socket_handler = private_connection_handler(connection_socket, client_address)
@@ -68,7 +77,7 @@ def private_connect(address, port, username):
     new_private_socket = socket(AF_INET, SOCK_STREAM)
     new_private_socket.connect((address, port))
     private_socket_map[username] = new_private_socket
-    chat_print("Private connection connected.")
+    chat_print("Private connection connected")
 
 
 def private_disconnect(username):
@@ -77,7 +86,7 @@ def private_disconnect(username):
         private_socket_map[username].close()
         chat_print("Closed.")
     else:
-        chat_print("Not connected.")
+        chat_print("Not connected")
 
 
 def private_message(username, message):
@@ -86,7 +95,7 @@ def private_message(username, message):
     if username in private_socket_map and private_socket_map[username]:
         private_socket_map[username].send(json.dumps({"from": USERNAME, "message": message}).encode())
     else:
-        chat_print("Not connected.")
+        chat_print("Not connected")
 
 
 # -----------------------------------------------------------------------------------------------------
@@ -95,11 +104,11 @@ def private_message(username, message):
 def __action_message(data):
     # reply to a user-initiated message
     if data["status"] == "MESSAGE_SELF":
-        chat_print("Cannot message yourself.")
+        chat_print("Error. Cannot message yourself")
     elif data["status"] == "USER_NOT_EXIST":
-        chat_print("User does not exist.")
+        chat_print("Error. User does not exist")
     elif data["status"] == "USER_BLOCKED":
-        chat_print("That user blocked you.")
+        chat_print("Error. That user blocked you")
     elif data["status"] == "SUCCESS":
         # message sent successfully
         pass
@@ -108,9 +117,11 @@ def __action_message(data):
 def __action_bock(data):
     # reply to a user-initiated block
     if data["status"] == "MESSAGE_SELF":
-        chat_print("Cannot block yourself.")
+        chat_print("Error. Cannot block yourself")
     elif data["status"] == "USER_NOT_EXIST":
-        chat_print("User does not exist.")
+        chat_print("Error. User does not exist")
+    elif data["status"] == "USER_ALREADY_BLOCKED":
+        chat_print("Error. User is already blocked")
     else:
         chat_print("Block success.")
 
@@ -118,11 +129,13 @@ def __action_bock(data):
 def __action_unblock(data):
     # reply to a user-initiated unblock
     if data["status"] == "MESSAGE_SELF":
-        chat_print("Cannot unblock yourself.")
+        chat_print("Error. Cannot unblock yourself")
     elif data["status"] == "USER_NOT_EXIST":
-        chat_print("User does not exist.")
+        chat_print("Error. User does not exist")
+    elif data["status"] == "USER_ALREADY_UNBLOCKED":
+        chat_print("Error. User was never blocked")
     else:
-        chat_print("Unblock success.")
+        chat_print("Unblock success")
 
 
 def __action_receive_message_or_broadcast(data):
@@ -132,7 +145,7 @@ def __action_receive_message_or_broadcast(data):
 
 def __action_broadcast(data):
     # reply to a user-initiated broadcast
-    chat_print("sent to", data["n_sent"], "user(s).")
+    chat_print("sent to", data["n_sent"], "user(s)")
     if int(data["n_blocked"]) > 0:
         chat_print("Your message could not be delivered to some recipients")
 
@@ -151,31 +164,31 @@ def __action_whoelsesince(data):
 
 def __action_login_broadcast(data):
     # receive login braodcast
-    chat_print(data["from"], "is logged in.")
+    chat_print(data["from"], "is logged in")
 
 
 def __action_logout_broadcast(data):
     # receive login braodcast
-    chat_print(data["from"], "is logged out.")
+    chat_print(data["from"], "is logged out")
 
 
 def __startprivate(data):
     # receive login braodcast
     if data["reply"] == "USER_NOT_EXIST":
-        chat_print("startprivate: user does not exist.")
+        chat_print("Error. User does not exist")
     elif data["reply"] == "USER_SELF":
-        chat_print("startprivate: cannot private yourself.")
+        chat_print("Error. Cannot private yourself")
     elif data["reply"] == "USER_BLOCKED":
-        chat_print("startprivate: that user blocked you.")
+        chat_print("Error. That user blocked you")
     elif data["reply"] == "USER_OFFLINE":
-        chat_print("startprivate: that user is offline.")
+        chat_print("Error. That user is offline")
     elif data["reply"] == "SUCCESS":
         address = data["address"]
         port = int(data["port"])
         username = data["username"]
         private_connect(address, port, username)
     else:
-        chat_print("Unexpected reply.")
+        chat_print("Error. Unexpected reply")
 
 
 ACTION_LOOKUP_TABLE = {

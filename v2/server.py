@@ -4,12 +4,12 @@
 
 from socket import *
 import threading
+import signal
+import atexit
 import time
 import json
 import sys
-import atexit
-import signal
-from user import User
+from admin import Admin
 from constants import IP, BUFF_SIZE, FORMAT, UPDATE_INTERVAL
 
 
@@ -24,11 +24,11 @@ BLOCK_MAX = 3
 ADDR = (IP, PORT)
 
 
-clients = []
+user_manager = Admin(BLOCK_DURATION, MAX_TIMEOUT)
 t_lock = threading.Condition()
+clients = []
 pending_messages = []
-name_to_socket = dict()
-user_manager = User(BLOCK_DURATION, MAX_TIMEOUT)
+name_to_socket = {}
 
 
 # helper function to send a message
@@ -63,7 +63,7 @@ def connection_handler(connection_socket, client_address):
 
             # get lock as we might me accessing some shared data structures
             with t_lock:
-                server_message = dict()
+                server_message = {}
                 server_message["action"] = action
 
                 # current user name
@@ -114,14 +114,11 @@ def connection_handler(connection_socket, client_address):
                     else:
                         server_message["status"] = "SUCCESS"
                         if user_manager.is_online(username):
-                            # user is online, send message to user
                             send_message(curr_user, username, message)
                         else:
-                            # user is offline, add message to pending list
                             pending_messages.append({"from_user": curr_user, "to_user": username, "message": message})
                 elif action == "broadcast":
                     # broadcast the message to online unblocked users
-                    # record the statistics
                     message = data["message"]
                     n_sent = 0
                     n_blocked = 0
@@ -143,6 +140,8 @@ def connection_handler(connection_socket, client_address):
                         server_message["status"] = "MESSAGE_SELF"
                     elif not user_manager.has_user(user_to_block):
                         server_message["status"] = "USER_NOT_EXIST"
+                    elif user_manager.is_blocked_user(curr_user, user_to_block):
+                        server_message["status"] = "USER_ALREADY_BLOCKED"
                     else:
                         server_message["status"] = "SUCCESS"
                         user_manager.block(curr_user, user_to_block)
@@ -152,18 +151,18 @@ def connection_handler(connection_socket, client_address):
                         server_message["status"] = "MESSAGE_SELF"
                     elif not user_manager.has_user(user_to_unblock):
                         server_message["status"] = "USER_NOT_EXIST"
+                    elif not user_manager.is_blocked_user(curr_user, user_to_block):
+                        server_message["status"] = "USER_ALREADY_UNBLOCKED"
                     else:
                         server_message["status"] = "SUCCESS"
                         user_manager.unblock(curr_user, user_to_unblock)
                 elif action == "whoelse":
                     online_users = user_manager.get_online_users()
-                    # remove the user who requested
                     online_users.remove(curr_user)
                     server_message["reply"] = list(online_users)
                 elif action == "whoelsesince":
                     users = user_manager.get_users_logged_in_since(int(data["since"]))
                     if curr_user in users:
-                        # remove the user who requested
                         users.remove(curr_user)
                     server_message["reply"] = list(users)
                 elif action == "startprivate":
@@ -187,15 +186,13 @@ def connection_handler(connection_socket, client_address):
                         server_message["username"] = user
                 else:
                     server_message["reply"] = "Unknown action"
-                # send message to the client
                 connection_socket.send(json.dumps(server_message).encode(FORMAT))
-                # notify the thread waiting
                 t_lock.notify()
 
     return real_connection_handler
 
 
-# handles all incoming data and replies to those
+# inbound data
 def recv_handler():
     global t_lock
     global clients
@@ -210,20 +207,18 @@ def recv_handler():
         socket_thread.start()
 
 
-# handles all out going data that can not be handled by recev_dandler
+# outbound data
 def send_handler():
     global t_lock
     global clients
     global serverSocket
     while True:
-        # get lock
         with t_lock:
             # check if any pending messages can be send to any users who is online
             for message in pending_messages:
                 if user_manager.is_online(message["to_user"]):
                     send_message(message["from_user"], message["to_user"], message["message"])
                     pending_messages.remove(message)
-            # time out
             for user in user_manager.get_timed_out_users():
                 if user in name_to_socket:
                     user_manager.set_offline(user)
@@ -243,7 +238,6 @@ def on_close():
     serverSocket.close()
 
 
-# we will use two sockets, one for sending and one for receiving
 serverSocket = socket(AF_INET, SOCK_STREAM)
 serverSocket.bind(ADDR)
 serverSocket.listen(1)
@@ -260,8 +254,6 @@ send_thread.start()
 signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 atexit.register(on_close)
 
-# this is the main thread
 while True:
     time.sleep(0.1)
-    # update any information of all user data
     user_manager.update()
