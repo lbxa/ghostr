@@ -6,7 +6,7 @@ from protocol import message_type, parse_message, remove_first_word, unpack_mess
 
 if len(sys.argv) != 2:
     print("error: usage: python client.py <SERVER_PORT>")
-    exit(0)
+    sys.exit()
 
 PORT = int(sys.argv[1])
 ADDR = (IP, PORT)
